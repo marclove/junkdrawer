@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event"
 import { useEffect, useState } from "react"
 import reactLogo from "./assets/react.svg"
+import ItemManager from "./components/ItemManager"
 import "./App.css"
 
 interface ServerStatus {
@@ -45,6 +46,9 @@ function App() {
           "⚪ Checking..."
         )}
       </div>
+
+      {/* SeaORM Demo */}
+      <ItemManager />
 
       <div className="row">
         <a href="https://vite.dev" target="_blank" rel="noopener">
