@@ -19,6 +19,7 @@ fn is_typesense_server_running(app: tauri::AppHandle) -> Result<bool, String> {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .manage(TypesenseState::new())
