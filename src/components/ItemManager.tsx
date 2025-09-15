@@ -1,9 +1,14 @@
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useId, useState } from "react"
 import { createItem, deleteItem, getAllItems } from "../lib/database"
 import type { CreateItemRequest, Item } from "../types/database"
 
 export default function ItemManager() {
+  const titleId = useId()
+  const contentId = useId()
+  const itemTypeId = useId()
+  const tagsId = useId()
+
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -14,7 +19,7 @@ export default function ItemManager() {
     tags: "",
   })
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     try {
       setLoading(true)
       const fetchedItems = await getAllItems()
@@ -25,11 +30,11 @@ export default function ItemManager() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadItems()
-  }, [])
+  }, [loadItems])
 
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -72,8 +77,11 @@ export default function ItemManager() {
         <h2 className="text-lg font-semibold mb-4">Create New Item</h2>
         <div className="grid gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Title</label>
+            <label htmlFor={titleId} className="block text-sm font-medium mb-1">
+              Title
+            </label>
             <input
+              id={titleId}
               type="text"
               value={newItem.title}
               onChange={(e) => setNewItem((prev) => ({ ...prev, title: e.target.value }))}
@@ -82,16 +90,22 @@ export default function ItemManager() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Content</label>
+            <label htmlFor={contentId} className="block text-sm font-medium mb-1">
+              Content
+            </label>
             <textarea
+              id={contentId}
               value={newItem.content || ""}
               onChange={(e) => setNewItem((prev) => ({ ...prev, content: e.target.value }))}
               className="w-full p-2 border rounded h-24"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Type</label>
+            <label htmlFor={itemTypeId} className="block text-sm font-medium mb-1">
+              Type
+            </label>
             <select
+              id={itemTypeId}
               value={newItem.item_type}
               onChange={(e) => setNewItem((prev) => ({ ...prev, item_type: e.target.value }))}
               className="w-full p-2 border rounded"
@@ -103,8 +117,11 @@ export default function ItemManager() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Tags (comma-separated)</label>
+            <label htmlFor={tagsId} className="block text-sm font-medium mb-1">
+              Tags (comma-separated)
+            </label>
             <input
+              id={tagsId}
               type="text"
               value={newItem.tags || ""}
               onChange={(e) => setNewItem((prev) => ({ ...prev, tags: e.target.value }))}
@@ -133,6 +150,7 @@ export default function ItemManager() {
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-semibold text-lg">{item.title}</h3>
                   <button
+                    type="button"
                     onClick={() => handleDeleteItem(item.id)}
                     className="text-red-500 hover:text-red-700 text-sm"
                   >
