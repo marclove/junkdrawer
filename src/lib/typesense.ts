@@ -1,8 +1,8 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core"
 
 export interface ServerStatus {
-  is_healthy: boolean;
-  message: string;
+  is_healthy: boolean
+  message: string
 }
 
 /**
@@ -12,9 +12,9 @@ export interface ServerStatus {
  */
 export async function startTypesenseServer(): Promise<void> {
   try {
-    await invoke('start_typesense_server');
+    await invoke("start_typesense_server")
   } catch (error) {
-    throw new Error(`Failed to start Typesense server: ${error}`);
+    throw new Error(`Failed to start Typesense server: ${error}`)
   }
 }
 
@@ -25,9 +25,9 @@ export async function startTypesenseServer(): Promise<void> {
  */
 export async function stopTypesenseServer(): Promise<void> {
   try {
-    await invoke('stop_typesense_server');
+    await invoke("stop_typesense_server")
   } catch (error) {
-    throw new Error(`Failed to stop Typesense server: ${error}`);
+    throw new Error(`Failed to stop Typesense server: ${error}`)
   }
 }
 
@@ -37,10 +37,10 @@ export async function stopTypesenseServer(): Promise<void> {
  */
 export async function isTypesenseServerRunning(): Promise<boolean> {
   try {
-    return await invoke('is_typesense_server_running');
+    return await invoke("is_typesense_server_running")
   } catch (error) {
-    console.error('Failed to check Typesense server status:', error);
-    return false;
+    console.error("Failed to check Typesense server status:", error)
+    return false
   }
 }
 
@@ -49,16 +49,14 @@ export async function isTypesenseServerRunning(): Promise<boolean> {
  * @param callback Function to call when status updates are received
  * @returns Function to unsubscribe from status updates
  */
-export function onTypesenseStatusUpdate(
-  callback: (status: ServerStatus) => void
-): () => void {
+export function onTypesenseStatusUpdate(callback: (status: ServerStatus) => void): () => void {
   // This would require importing the event system from Tauri
   // For now, this is a placeholder for the event listener
-  const { listen } = require('@tauri-apps/api/event');
+  const { listen } = require("@tauri-apps/api/event")
 
-  const unlisten = listen('typesense-server-status', (event: any) => {
-    callback(event.payload as ServerStatus);
-  });
+  const unlisten = listen("typesense-server-status", (event: { payload: ServerStatus }) => {
+    callback(event.payload)
+  })
 
-  return unlisten;
+  return unlisten
 }
