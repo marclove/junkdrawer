@@ -1,59 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { Item, CreateItemRequest } from '../types/database';
-import { createItem, getAllItems, deleteItem } from '../lib/database';
+import type React from "react"
+import { useEffect, useState } from "react"
+import { createItem, deleteItem, getAllItems } from "../lib/database"
+import type { CreateItemRequest, Item } from "../types/database"
 
 export default function ItemManager() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<Item[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [newItem, setNewItem] = useState<CreateItemRequest>({
-    title: '',
-    content: '',
-    item_type: 'note',
-    tags: ''
-  });
+    title: "",
+    content: "",
+    item_type: "note",
+    tags: "",
+  })
 
   const loadItems = async () => {
     try {
-      setLoading(true);
-      const fetchedItems = await getAllItems();
-      setItems(fetchedItems);
-      setError(null);
+      setLoading(true)
+      const fetchedItems = await getAllItems()
+      setItems(fetchedItems)
+      setError(null)
     } catch (err) {
-      setError(`Failed to load items: ${err}`);
+      setError(`Failed to load items: ${err}`)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    loadItems();
-  }, []);
+    loadItems()
+  }, [])
 
   const handleCreateItem = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     try {
-      const created = await createItem(newItem);
-      setItems(prev => [...prev, created]);
-      setNewItem({ title: '', content: '', item_type: 'note', tags: '' });
-      setError(null);
+      const created = await createItem(newItem)
+      setItems((prev) => [...prev, created])
+      setNewItem({ title: "", content: "", item_type: "note", tags: "" })
+      setError(null)
     } catch (err) {
-      setError(`Failed to create item: ${err}`);
+      setError(`Failed to create item: ${err}`)
     }
-  };
+  }
 
   const handleDeleteItem = async (id: number) => {
     try {
-      await deleteItem(id);
-      setItems(prev => prev.filter(item => item.id !== id));
-      setError(null);
+      await deleteItem(id)
+      setItems((prev) => prev.filter((item) => item.id !== id))
+      setError(null)
     } catch (err) {
-      setError(`Failed to delete item: ${err}`);
+      setError(`Failed to delete item: ${err}`)
     }
-  };
+  }
 
   if (loading) {
-    return <div className="p-4">Loading items...</div>;
+    return <div className="p-4">Loading items...</div>
   }
 
   return (
@@ -75,7 +76,7 @@ export default function ItemManager() {
             <input
               type="text"
               value={newItem.title}
-              onChange={(e) => setNewItem(prev => ({ ...prev, title: e.target.value }))}
+              onChange={(e) => setNewItem((prev) => ({ ...prev, title: e.target.value }))}
               className="w-full p-2 border rounded"
               required
             />
@@ -83,8 +84,8 @@ export default function ItemManager() {
           <div>
             <label className="block text-sm font-medium mb-1">Content</label>
             <textarea
-              value={newItem.content || ''}
-              onChange={(e) => setNewItem(prev => ({ ...prev, content: e.target.value }))}
+              value={newItem.content || ""}
+              onChange={(e) => setNewItem((prev) => ({ ...prev, content: e.target.value }))}
               className="w-full p-2 border rounded h-24"
             />
           </div>
@@ -92,7 +93,7 @@ export default function ItemManager() {
             <label className="block text-sm font-medium mb-1">Type</label>
             <select
               value={newItem.item_type}
-              onChange={(e) => setNewItem(prev => ({ ...prev, item_type: e.target.value }))}
+              onChange={(e) => setNewItem((prev) => ({ ...prev, item_type: e.target.value }))}
               className="w-full p-2 border rounded"
             >
               <option value="note">Note</option>
@@ -105,8 +106,8 @@ export default function ItemManager() {
             <label className="block text-sm font-medium mb-1">Tags (comma-separated)</label>
             <input
               type="text"
-              value={newItem.tags || ''}
-              onChange={(e) => setNewItem(prev => ({ ...prev, tags: e.target.value }))}
+              value={newItem.tags || ""}
+              onChange={(e) => setNewItem((prev) => ({ ...prev, tags: e.target.value }))}
               className="w-full p-2 border rounded"
               placeholder="tag1, tag2, tag3"
             />
@@ -127,7 +128,7 @@ export default function ItemManager() {
           <p className="text-gray-500">No items found. Create one above!</p>
         ) : (
           <div className="space-y-4">
-            {items.map(item => (
+            {items.map((item) => (
               <div key={item.id} className="border rounded-lg p-4 bg-gray-50">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-semibold text-lg">{item.title}</h3>
@@ -138,9 +139,7 @@ export default function ItemManager() {
                     Delete
                   </button>
                 </div>
-                {item.content && (
-                  <p className="text-gray-700 mb-2">{item.content}</p>
-                )}
+                {item.content && <p className="text-gray-700 mb-2">{item.content}</p>}
                 <div className="flex gap-4 text-sm text-gray-500">
                   <span>Type: {item.item_type}</span>
                   {item.tags && <span>Tags: {item.tags}</span>}
@@ -154,5 +153,5 @@ export default function ItemManager() {
         )}
       </div>
     </div>
-  );
+  )
 }
