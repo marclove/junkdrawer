@@ -21,7 +21,7 @@ Junkdrawer is a Tauri desktop application for storing and organizing digital con
   - `lib/useTypesense.ts`: React hooks for server state management
   - `lib/database.ts`: Frontend API for database operations
   - `types/database.ts`: TypeScript interfaces for database entities
-  - `components/ItemManager.tsx`: Demo component for CRUD operations
+  - `components/NotesWorkspace.tsx`: Notes experience with autosave and search sync
 - `src-tauri/`: Rust backend application
   - `src/typesense.rs`: Server lifecycle management and health monitoring
   - `src/database.rs`: Database connection management with SeaORM

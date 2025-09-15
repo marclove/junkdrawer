@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   isTypesenseServerRunning,
+  isTauriEnvironment,
   onTypesenseStatusUpdate,
   type ServerStatus,
   startTypesenseServer,
@@ -27,8 +28,10 @@ export function useTypesense(): UseTypesenseReturn {
   useEffect(() => {
     const checkInitialStatus = async () => {
       try {
-        const running = await isTypesenseServerRunning()
-        setIsRunning(running)
+        if (isTauriEnvironment()) {
+          const running = await isTypesenseServerRunning()
+          setIsRunning(running)
+        }
       } catch (err) {
         setError(`Failed to check initial server status: ${err}`)
       }
@@ -39,19 +42,38 @@ export function useTypesense(): UseTypesenseReturn {
 
   // Listen for server status updates
   useEffect(() => {
-    const unsubscribe = onTypesenseStatusUpdate((status: ServerStatus) => {
-      setServerStatus(status)
-      setIsRunning(status.is_healthy)
-      if (!status.is_healthy) {
-        setError(status.message)
-      } else {
-        setError(null)
+    let isMounted = true
+    let unlisten: (() => void) | null = null
+
+    const register = async () => {
+      try {
+        if (!isTauriEnvironment()) {
+          return
+        }
+
+        const dispose = await onTypesenseStatusUpdate((status) => {
+          if (!isMounted) return
+          setServerStatus(status)
+          setIsRunning(status.is_healthy)
+          if (!status.is_healthy) {
+            setError(status.message)
+          } else {
+            setError(null)
+          }
+        })
+        unlisten = dispose
+      } catch (err) {
+        if (!isMounted) return
+        setError(`Failed to listen for status updates: ${err}`)
       }
-    })
+    }
+
+    register()
 
     return () => {
-      if (typeof unsubscribe === "function") {
-        unsubscribe()
+      isMounted = false
+      if (unlisten) {
+        unlisten()
       }
     }
   }, [])

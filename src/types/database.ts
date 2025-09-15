@@ -14,3 +14,11 @@ export interface CreateItemRequest {
   item_type: string
   tags?: string | null
 }
+
+export interface UpdateItemRequest {
+  id: number
+  title: string
+  content?: string | null
+  item_type: string
+  tags?: string | null
+}

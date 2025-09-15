@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
-import type { CreateItemRequest, Item } from "../types/database"
+import type { CreateItemRequest, Item, UpdateItemRequest } from "../types/database"
 
 export async function createItem(request: CreateItemRequest): Promise<Item> {
   return invoke("create_item", { request })
@@ -15,4 +15,8 @@ export async function getItemById(id: number): Promise<Item | null> {
 
 export async function deleteItem(id: number): Promise<void> {
   return invoke("delete_item", { id })
+}
+
+export async function updateItem(request: UpdateItemRequest): Promise<Item> {
+  return invoke("update_item", { request })
 }
