@@ -13,6 +13,10 @@ pub struct Model {
     pub tags: Option<String>,
     pub source_type: Option<String>,
     pub source_url: Option<String>,
+    pub mime_type: Option<String>,
+    pub file_size: Option<i64>,
+    pub file_modified_at: Option<chrono::NaiveDateTime>,
+    pub metadata: Option<String>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }

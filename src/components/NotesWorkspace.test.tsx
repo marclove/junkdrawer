@@ -9,6 +9,7 @@ const databaseMocks = vi.hoisted(() => ({
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   createBookmark: vi.fn(),
+  createFileItem: vi.fn(),
 }))
 
 const typesenseMocks = vi.hoisted(() => {
@@ -40,7 +41,7 @@ const typesenseMocks = vi.hoisted(() => {
 vi.mock("../lib/database", () => databaseMocks)
 vi.mock("../lib/useTypesense", () => typesenseMocks)
 
-const { getAllItems, createItem, updateItem, deleteItem, createBookmark } = databaseMocks
+const { getAllItems, createItem, updateItem, deleteItem, createBookmark, createFileItem } = databaseMocks
 
 const noteFactory = (overrides: Partial<Item> = {}): Item => ({
   id: 1,
@@ -50,6 +51,10 @@ const noteFactory = (overrides: Partial<Item> = {}): Item => ({
   tags: null,
   source_type: null,
   source_url: null,
+  mime_type: null,
+  file_size: null,
+  file_modified_at: null,
+  metadata: null,
   created_at: new Date("2024-01-01T00:00:00.000Z").toISOString(),
   updated_at: new Date("2024-01-01T00:00:00.000Z").toISOString(),
   ...overrides,
@@ -63,6 +68,8 @@ describe("NotesWorkspace", () => {
     createItem.mockReset()
     updateItem.mockReset()
     deleteItem.mockReset()
+    createBookmark.mockReset()
+    createFileItem.mockReset()
     typesenseMocks.reset()
     typesenseMocks.useTypesense.mockClear()
   })
@@ -301,6 +308,213 @@ describe("NotesWorkspace", () => {
       expect(urlLink).toHaveAttribute("href", "https://example.com")
       expect(urlLink).toHaveAttribute("target", "_blank")
       expect(urlLink).toHaveAttribute("rel", "noopener noreferrer")
+    })
+  })
+
+  describe("file drop functionality", () => {
+    // Helper to create a mock file
+    const createMockFile = (name: string, type: string = "text/plain") => {
+      return new File(["test content"], name, { type, lastModified: Date.now() })
+    }
+
+    // Helper to simulate file drop event
+    const simulateFileDrop = async (files: File[]) => {
+      const dataTransfer = {
+        files,
+        items: files.map(file => ({ kind: "file", type: file.type, getAsFile: () => file })),
+        types: ["Files"]
+      }
+
+      // Use fireEvent.drop with mock dataTransfer since DragEvent isn't available in test env
+      const mockEvent = {
+        dataTransfer,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn()
+      }
+
+      // Simulate drag enter first to show drop zone
+      fireEvent.dragEnter(document.body, mockEvent)
+      fireEvent.drop(document.body, mockEvent)
+    }
+
+    it("shows copy/move dialog when user drops a file", async () => {
+      getAllItems.mockResolvedValue([])
+      
+      render(<NotesWorkspace />)
+      
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const testFile = createMockFile("test-document.pdf", "application/pdf")
+      await simulateFileDrop([testFile])
+
+      // Should show dialog with copy/move options
+      await waitFor(() => {
+        expect(screen.getByText(/copy to junkdrawer/i)).toBeInTheDocument()
+        expect(screen.getByText(/move to junkdrawer/i)).toBeInTheDocument()
+      })
+    })
+
+    it("creates file item when user chooses copy", async () => {
+      const fileItem = noteFactory({
+        id: 2,
+        title: "test-document.pdf",
+        content: null,
+        item_type: "file",
+        source_type: "file",
+        source_url: "/Users/test/Documents/Junkdrawer/files/test-document.pdf",
+      })
+
+      getAllItems.mockResolvedValue([])
+      createFileItem.mockResolvedValue(fileItem)
+
+      render(<NotesWorkspace />)
+      
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const testFile = createMockFile("test-document.pdf", "application/pdf")
+      await simulateFileDrop([testFile])
+
+      // Wait for dialog and click copy
+      await waitFor(() => {
+        expect(screen.getByText(/copy to junkdrawer/i)).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText(/copy to junkdrawer/i))
+
+      await waitFor(() => {
+        expect(createFileItem).toHaveBeenCalledWith({
+          filePath: testFile.name, // Files don't have path property in browser
+          operation: "copy"
+        })
+      })
+    })
+
+    it("creates file item when user chooses move", async () => {
+      const fileItem = noteFactory({
+        id: 3,
+        title: "test-image.jpg",
+        item_type: "file",
+        source_type: "file",
+      })
+
+      getAllItems.mockResolvedValue([])
+      createFileItem.mockResolvedValue(fileItem)
+
+      render(<NotesWorkspace />)
+      
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const testFile = createMockFile("test-image.jpg", "image/jpeg")
+      await simulateFileDrop([testFile])
+
+      await waitFor(() => {
+        expect(screen.getByText(/move to junkdrawer/i)).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText(/move to junkdrawer/i))
+
+      await waitFor(() => {
+        expect(createFileItem).toHaveBeenCalledWith({
+          filePath: testFile.name, // Files don't have path property in browser
+          operation: "move"
+        })
+      })
+    })
+
+    it("handles multiple files drop", async () => {
+      getAllItems.mockResolvedValue([])
+      createFileItem
+        .mockResolvedValueOnce(noteFactory({ id: 2, item_type: "file", title: "doc1.pdf" }))
+        .mockResolvedValueOnce(noteFactory({ id: 3, item_type: "file", title: "image1.jpg" }))
+        .mockResolvedValueOnce(noteFactory({ id: 4, item_type: "file", title: "text1.txt" }))
+
+      render(<NotesWorkspace />)
+      
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const files = [
+        createMockFile("doc1.pdf", "application/pdf"),
+        createMockFile("image1.jpg", "image/jpeg"),
+        createMockFile("text1.txt", "text/plain")
+      ]
+
+      await simulateFileDrop(files)
+
+      await waitFor(() => {
+        expect(screen.getByText(/copy to junkdrawer/i)).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByText(/copy to junkdrawer/i))
+
+      // Should call createFileItem for each file
+      await waitFor(() => {
+        expect(createFileItem).toHaveBeenCalledTimes(3)
+      })
+    })
+
+    it("displays files with appropriate icons in the list", async () => {
+      const fileItems = [
+        noteFactory({
+          id: 1,
+          title: "document.pdf",
+          item_type: "file",
+          source_type: "file",
+          source_url: "/path/to/document.pdf"
+        }),
+        noteFactory({
+          id: 2,
+          title: "image.jpg", 
+          item_type: "file",
+          source_type: "file",
+          source_url: "/path/to/image.jpg"
+        }),
+        noteFactory({
+          id: 3,
+          title: "unknown.xyz",
+          item_type: "file", 
+          source_type: "file",
+          source_url: "/path/to/unknown.xyz"
+        })
+      ]
+
+      getAllItems.mockResolvedValue(fileItems)
+
+      render(<NotesWorkspace />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText("document.pdf")).toHaveLength(2) // One in list, one in detail view
+        expect(screen.getByText("image.jpg")).toBeInTheDocument()
+        expect(screen.getByText("unknown.xyz")).toBeInTheDocument()
+      })
+
+      // Should show file icons (we'll implement specific icons later)
+      // For now, just check that files are displayed differently from notes
+      expect(screen.getAllByTitle(/file/i)).toHaveLength(3)
+    })
+
+    it("closes dialog when user clicks outside or presses escape", async () => {
+      getAllItems.mockResolvedValue([])
+      
+      render(<NotesWorkspace />)
+      
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const testFile = createMockFile("test.txt")
+      await simulateFileDrop([testFile])
+
+      await waitFor(() => {
+        expect(screen.getByText(/copy to junkdrawer/i)).toBeInTheDocument()
+      })
+
+      // Simulate clicking outside dialog
+      fireEvent.keyDown(document, { key: "Escape", code: "Escape" })
+
+      await waitFor(() => {
+        expect(screen.queryByText(/copy to junkdrawer/i)).not.toBeInTheDocument()
+      })
+
+      // File should not be created
+      expect(createFileItem).not.toHaveBeenCalled()
     })
   })
 })

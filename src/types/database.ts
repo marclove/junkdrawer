@@ -6,6 +6,10 @@ export interface Item {
   tags: string | null
   source_type: string | null
   source_url: string | null
+  mime_type: string | null
+  file_size: number | null
+  file_modified_at: string | null
+  metadata: string | null
   created_at: string
   updated_at: string
 }
@@ -17,6 +21,10 @@ export interface CreateItemRequest {
   tags?: string | null
   source_type?: string | null
   source_url?: string | null
+  mime_type?: string | null
+  file_size?: number | null
+  file_modified_at?: string | null
+  metadata?: string | null
 }
 
 export interface UpdateItemRequest {
@@ -27,4 +35,8 @@ export interface UpdateItemRequest {
   tags?: string | null
   source_type?: string | null
   source_url?: string | null
+  mime_type?: string | null
+  file_size?: number | null
+  file_modified_at?: string | null
+  metadata?: string | null
 }

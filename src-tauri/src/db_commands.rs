@@ -1,6 +1,7 @@
 use crate::bookmarks::BookmarkProcessor;
 use crate::database::DatabaseState;
 use crate::entities::{Item, ItemActiveModel, ItemModel};
+use crate::files::{FileOperationRequest, FileProcessor};
 use crate::typesense;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder, Set};
@@ -165,6 +166,49 @@ pub async fn create_bookmark(
         tags: Set(None),
         source_type: Set(Some("bookmark".to_string())),
         source_url: Set(Some(metadata.url)),
+        ..Default::default()
+    };
+
+    let item = item.insert(&db).await.map_err(|e| e.to_string())?;
+    
+    // Add to search index
+    typesense::upsert_item_document(&item)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    Ok(item)
+}
+
+#[tauri::command]
+pub async fn create_file_item(
+    request: FileOperationRequest,
+    state: tauri::State<'_, DatabaseState>,
+    app_handle: tauri::AppHandle,
+) -> Result<ItemModel, String> {
+    let processor = FileProcessor::new();
+    
+    // Process file (copy or move)
+    let metadata = processor
+        .process_file(request, &app_handle)
+        .map_err(|e| format!("Failed to process file: {}", e))?;
+    
+    let db = state
+        .get_connection()
+        .await
+        .ok_or("Database not connected")?;
+
+    // Create file item with extracted metadata
+    let item = ItemActiveModel {
+        title: Set(metadata.title),
+        content: Set(None), // Files don't have content, just metadata
+        item_type: Set("file".to_string()),
+        tags: Set(None),
+        source_type: Set(Some("file".to_string())),
+        source_url: Set(Some(metadata.final_path)),
+        mime_type: Set(metadata.mime_type),
+        file_size: Set(Some(metadata.file_size as i64)),
+        file_modified_at: Set(Some(metadata.file_modified_at)),
+        metadata: Set(None), // Can be used for additional file metadata in the future
         ..Default::default()
     };
 

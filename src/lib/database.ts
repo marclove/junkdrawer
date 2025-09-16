@@ -24,3 +24,12 @@ export async function updateItem(request: UpdateItemRequest): Promise<Item> {
 export async function createBookmark(url: string): Promise<Item> {
   return invoke("create_bookmark", { url })
 }
+
+export interface FileOperationRequest {
+  filePath: string
+  operation: "copy" | "move"
+}
+
+export async function createFileItem(request: FileOperationRequest): Promise<Item> {
+  return invoke("create_file_item", { request })
+}

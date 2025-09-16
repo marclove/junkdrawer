@@ -2,6 +2,7 @@ mod bookmarks;
 mod database;
 mod db_commands;
 mod entities;
+mod files;
 mod migration;
 mod typesense;
 
@@ -40,7 +41,8 @@ pub fn run() {
             db_commands::get_item_by_id,
             db_commands::delete_item,
             db_commands::update_item,
-            db_commands::create_bookmark
+            db_commands::create_bookmark,
+            db_commands::create_file_item
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { createBookmark, createItem, deleteItem, getAllItems, updateItem } from "../lib/database"
+import { createBookmark, createFileItem, createItem, deleteItem, getAllItems, updateItem } from "../lib/database"
 import { useTypesense } from "../lib/useTypesense"
 import { cn } from "../lib/utils"
 import type { Item } from "../types/database"
@@ -43,6 +43,9 @@ export default function NotesWorkspace({
   const [showTypesenseWarning, setShowTypesenseWarning] = useState(false)
   const [bookmarkUrl, setBookmarkUrl] = useState("")
   const [creatingBookmark, setCreatingBookmark] = useState(false)
+  const [showFileDialog, setShowFileDialog] = useState(false)
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([])
+  const [creatingFiles, setCreatingFiles] = useState(false)
   const warningTimeoutRef = useRef<number | null>(null)
 
   const { serverStatus } = useTypesense()
@@ -123,6 +126,43 @@ export default function NotesWorkspace({
       setCreatingBookmark(false)
     }
   }, [bookmarkUrl])
+
+  const handleFileDrop = useCallback((files: File[]) => {
+    setDroppedFiles(files)
+    setShowFileDialog(true)
+  }, [])
+
+  const handleFileOperation = useCallback(async (operation: "copy" | "move") => {
+    setCreatingFiles(true)
+    setShowFileDialog(false)
+    
+    try {
+      const fileItems = await Promise.all(
+        droppedFiles.map(file => 
+          createFileItem({
+            filePath: file.name, // Use file.name since File doesn't have path property in browser
+            operation
+          })
+        )
+      )
+      
+      setNotes((prev) => [...fileItems, ...prev])
+      if (fileItems.length > 0) {
+        setSelectedId(fileItems[0].id)
+      }
+      setError(null)
+    } catch (err) {
+      setError(`Failed to process files: ${err}`)
+    } finally {
+      setCreatingFiles(false)
+      setDroppedFiles([])
+    }
+  }, [droppedFiles])
+
+  const handleCancelFileDrop = useCallback(() => {
+    setShowFileDialog(false)
+    setDroppedFiles([])
+  }, [])
 
   const handleDelete = useCallback(
     async (id: number) => {
@@ -216,6 +256,47 @@ export default function NotesWorkspace({
     }
   }, [serverStatus?.is_healthy, showTypesenseWarning, typesenseWarningDelayMs])
 
+  // File drop event handlers
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const files = Array.from(e.dataTransfer?.files || [])
+      if (files.length > 0) {
+        handleFileDrop(files)
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showFileDialog) {
+        handleCancelFileDrop()
+      }
+    }
+
+    document.addEventListener("dragover", handleDragOver)
+    document.addEventListener("dragenter", handleDragEnter)
+    document.addEventListener("drop", handleDrop)
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.removeEventListener("dragover", handleDragOver)
+      document.removeEventListener("dragenter", handleDragEnter)
+      document.removeEventListener("drop", handleDrop)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [handleFileDrop, showFileDialog, handleCancelFileDrop])
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
@@ -288,6 +369,7 @@ export default function NotesWorkspace({
                   {notes.map((item) => {
                     const isActive = selectedId === item.id
                     const isBookmark = item.item_type === "bookmark"
+                    const isFile = item.item_type === "file"
                     return (
                       <li key={item.id}>
                         <button
@@ -305,12 +387,19 @@ export default function NotesWorkspace({
                                   🔗
                                 </span>
                               )}
+                              {isFile && (
+                                <span className="text-green-600" title="File">
+                                  📄
+                                </span>
+                              )}
                               <p className="font-medium line-clamp-1 flex-1">
-                                {item.title || (isBookmark ? "Untitled bookmark" : "Untitled note")}
+                                {item.title || (isBookmark ? "Untitled bookmark" : isFile ? "Untitled file" : "Untitled note")}
                               </p>
                             </div>
                             <p className="text-xs text-muted-foreground line-clamp-2">
                               {isBookmark && item.source_url
+                                ? item.source_url
+                                : isFile && item.source_url
                                 ? item.source_url
                                 : (item.content ?? "").trim() || "No content yet."}
                             </p>
@@ -375,6 +464,65 @@ export default function NotesWorkspace({
                   )}
                 </div>
               </div>
+            ) : selectedNote.item_type === "file" ? (
+              <div className="flex h-full flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <h1 className="text-2xl font-semibold">{selectedNote.title}</h1>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Added{" "}
+                      {new Date(selectedNote.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4">
+                  {selectedNote.source_url && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">File Path:</h3>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          // Open file using Tauri opener
+                          import("@tauri-apps/plugin-opener").then(({ openPath }) => {
+                            openPath(selectedNote.source_url!)
+                          })
+                        }}
+                        className="w-fit text-blue-600 hover:text-blue-800"
+                      >
+                        Open File
+                      </Button>
+                      <p className="text-sm text-muted-foreground mt-1 break-all">
+                        {selectedNote.source_url}
+                      </p>
+                    </div>
+                  )}
+                  {selectedNote.mime_type && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Type:</h3>
+                      <p className="text-base">{selectedNote.mime_type}</p>
+                    </div>
+                  )}
+                  {selectedNote.file_size && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Size:</h3>
+                      <p className="text-base">
+                        {(selectedNote.file_size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  )}
+                  {selectedNote.file_modified_at && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Last Modified:</h3>
+                      <p className="text-base">
+                        {new Date(selectedNote.file_modified_at).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : draft ? (
               <div className="flex h-full flex-col gap-4">
                 <div className="flex flex-col gap-2">
@@ -418,6 +566,46 @@ export default function NotesWorkspace({
           )}
         </section>
       </div>
+
+      {/* File Drop Dialog */}
+      {showFileDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
+            <h3 className="text-lg font-semibold mb-4">Add Files to Junkdrawer</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              {droppedFiles.length === 1 
+                ? `What would you like to do with "${droppedFiles[0].name}"?`
+                : `What would you like to do with these ${droppedFiles.length} files?`
+              }
+            </p>
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => handleFileOperation("copy")}
+                disabled={creatingFiles}
+                className="flex-1"
+              >
+                {creatingFiles ? "Processing..." : "Copy to Junkdrawer"}
+              </Button>
+              <Button 
+                onClick={() => handleFileOperation("move")}
+                disabled={creatingFiles}
+                variant="secondary"
+                className="flex-1"
+              >
+                {creatingFiles ? "Processing..." : "Move to Junkdrawer"}
+              </Button>
+            </div>
+            <Button 
+              onClick={handleCancelFileDrop}
+              disabled={creatingFiles}
+              variant="ghost"
+              className="w-full mt-3"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="fixed bottom-6 right-6 max-w-sm rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
