@@ -17,8 +17,6 @@ pub enum BookmarkError {
     Network(#[from] reqwest::Error),
     #[error("Request timeout")]
     Timeout,
-    #[error("Failed to parse HTML: {0}")]
-    ParseError(String),
     #[error("No title found in page")]
     NoTitle,
 }
