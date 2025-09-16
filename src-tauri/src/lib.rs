@@ -1,3 +1,4 @@
+mod bookmarks;
 mod database;
 mod db_commands;
 mod entities;
@@ -38,7 +39,8 @@ pub fn run() {
             db_commands::get_all_items,
             db_commands::get_item_by_id,
             db_commands::delete_item,
-            db_commands::update_item
+            db_commands::update_item,
+            db_commands::create_bookmark
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

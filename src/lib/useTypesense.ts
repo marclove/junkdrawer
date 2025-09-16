@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
-  isTypesenseServerRunning,
   isTauriEnvironment,
+  isTypesenseServerRunning,
   onTypesenseStatusUpdate,
   type ServerStatus,
   startTypesenseServer,

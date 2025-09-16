@@ -20,3 +20,7 @@ export async function deleteItem(id: number): Promise<void> {
 export async function updateItem(request: UpdateItemRequest): Promise<Item> {
   return invoke("update_item", { request })
 }
+
+export async function createBookmark(url: string): Promise<Item> {
+  return invoke("create_bookmark", { url })
+}

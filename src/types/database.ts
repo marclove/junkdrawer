@@ -4,6 +4,8 @@ export interface Item {
   content: string | null
   item_type: string
   tags: string | null
+  source_type: string | null
+  source_url: string | null
   created_at: string
   updated_at: string
 }
@@ -13,6 +15,8 @@ export interface CreateItemRequest {
   content?: string | null
   item_type: string
   tags?: string | null
+  source_type?: string | null
+  source_url?: string | null
 }
 
 export interface UpdateItemRequest {
@@ -21,4 +25,6 @@ export interface UpdateItemRequest {
   content?: string | null
   item_type: string
   tags?: string | null
+  source_type?: string | null
+  source_url?: string | null
 }

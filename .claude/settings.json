@@ -21,7 +21,7 @@
           },
           {
             "type": "command",
-            "command": "pnpm run lint"
+            "command": "cd $CLAUDE_PROJECT_DIR && pnpm run lint > /tmp/lint_output.txt 2>&1; if [ $? -ne 0 ]; then echo '{\"decision\": \"block\", \"reason\": \"Linting failed:\\n'$(cat /tmp/lint_output.txt | sed 's/\"/\\\"/g' | tr '\n' ' ')'\"}'; else echo '{}'; fi"
           }
         ]
       }

@@ -28,6 +28,7 @@ Junkdrawer is a Tauri desktop application for storing and organizing digital con
   - `src/entities/`: SeaORM entity models for database tables
   - `src/migration/`: SeaORM migration files for schema management
   - `src/db_commands.rs`: Tauri commands for database operations
+  - `src/bookmarks.rs`: URL metadata fetching with retry logic
   - `src/lib.rs` & `src/main.rs`: Core Tauri application setup
 - `typesense/`: Contains Typesense server binary
 
@@ -43,7 +44,7 @@ The application uses SeaORM with SQLite for data persistence:
 - **Connection Management**: Handled by `DatabaseState` in `src-tauri/src/database.rs`
 - **Migrations**: Automatic schema management using SeaORM migration system
 - **Entity Models**: Type-safe database models in `src-tauri/src/entities/`
-- **Tauri Commands**: Database operations exposed as `create_item`, `get_all_items`, `get_item_by_id`, `delete_item`
+- **Tauri Commands**: Database operations exposed as `create_item`, `get_all_items`, `get_item_by_id`, `delete_item`, `update_item`, `create_bookmark`
 
 ## Development Commands
 
@@ -83,6 +84,79 @@ The project uses strict TypeScript configuration with:
 - Modern ES2020 target
 
 Run `pnpm build` to perform TypeScript compilation and catch type errors.
+
+### Testing Best Practices
+
+When adding new features:
+1. Add all required mocks upfront when creating new API functions
+2. Update existing tests when changing UI text or behavior
+3. Test database migrations on empty database before committing
+4. Write tests as you implement, not after
+5. Consider component complexity when writing tests - complex components are harder to test
+
+Example mock setup for new database functions:
+```typescript
+const databaseMocks = vi.hoisted(() => ({
+  getAllItems: vi.fn(),
+  createItem: vi.fn(),
+  // Add new functions here immediately when implementing
+  createBookmark: vi.fn(),  // Don't forget new functions!
+}))
+```
+
+## Component Architecture Guidelines
+
+### Managing Component Complexity
+- Biome enforces max cognitive complexity of 15
+- Extract sub-components when approaching limits
+- Use custom hooks for complex logic
+- Prefer composition over monolithic components
+
+Example refactoring pattern:
+```typescript
+// Instead of one large component
+export function WorkspaceComponent() {
+  // 400+ lines of code...
+}
+
+// Extract logical sub-components
+export function WorkspaceComponent() {
+  return (
+    <>
+      <Header />
+      <ItemList items={items} />
+      <ItemDetail item={selected} />
+    </>
+  )
+}
+```
+
+When complexity warning appears, either:
+1. Refactor immediately (preferred)
+2. Add temporary ignore with refactor ticket:
+   ```typescript
+   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Will refactor in next iteration
+   ```
+
+## Development Workflow Best Practices
+
+### Pre-Implementation Checklist
+- [ ] Check database-specific constraints (especially SQLite limitations)
+- [ ] Verify all dependency versions are compatible
+- [ ] Update tests for any UI text changes
+- [ ] Plan for component complexity limits (max 15)
+
+### During Development
+- Run `pnpm lint` frequently to catch complexity issues early
+- Test migrations on fresh database: `just db-reset` then restart app
+- When adding new API functions, update all mocks in test files
+- Keep components under complexity threshold or extract sub-components
+
+### Common Pitfalls
+1. **SQLite migrations**: Must use separate ALTER TABLE statements
+2. **Test maintenance**: UI text changes break tests - update immediately
+3. **Component complexity**: Extract components before hitting limits
+4. **HTML parsing**: Start simple (regex/string parsing) before complex libraries
 
 ## SeaORM Database Management
 
@@ -186,6 +260,36 @@ For efficient development workflow, use these just commands:
 
 1. **Always create new migration file** - never modify existing migrations
 2. **Update entity model first**, then create migration
+
+#### SQLite-Specific Limitations
+
+**CRITICAL for SQLite**: Each ALTER TABLE statement must be separate:
+```rust
+// ❌ WRONG - SQLite will fail with "doesn't support multiple alter options"
+manager.alter_table(
+    Table::alter()
+        .table(Item::Table)
+        .add_column(ColumnDef::new(Item::Field1).string())
+        .add_column(ColumnDef::new(Item::Field2).string())  // FAILS!
+        .to_owned(),
+).await
+
+// ✅ CORRECT - Separate ALTER statements
+manager.alter_table(
+    Table::alter()
+        .table(Item::Table)
+        .add_column(ColumnDef::new(Item::Field1).string())
+        .to_owned(),
+).await?;
+
+manager.alter_table(
+    Table::alter()
+        .table(Item::Table)
+        .add_column(ColumnDef::new(Item::Field2).string())
+        .to_owned(),
+).await?;
+```
+
 3. **Common operations**:
    ```rust
    // Add column

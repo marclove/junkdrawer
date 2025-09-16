@@ -77,10 +77,12 @@ describe("typesense client", () => {
   it("subscribes to status updates in tauri", async () => {
     const unlisten = vi.fn()
     const received: unknown[] = []
-    listenMock.mockImplementation(async (_event, callback: (event: { payload: unknown }) => void) => {
-      callback({ payload: { is_healthy: true, message: "ok" } })
-      return unlisten
-    })
+    listenMock.mockImplementation(
+      async (_event, callback: (event: { payload: unknown }) => void) => {
+        callback({ payload: { is_healthy: true, message: "ok" } })
+        return unlisten
+      }
+    )
     ;(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {}
 
     const dispose = await onTypesenseStatusUpdate((status) => {

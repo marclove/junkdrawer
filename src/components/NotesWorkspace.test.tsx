@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-
-import NotesWorkspace from "./NotesWorkspace"
 import type { Item } from "../types/database"
+import NotesWorkspace from "./NotesWorkspace"
 
 const databaseMocks = vi.hoisted(() => ({
   getAllItems: vi.fn(),
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
+  createBookmark: vi.fn(),
 }))
 
 const typesenseMocks = vi.hoisted(() => {
@@ -40,7 +40,7 @@ const typesenseMocks = vi.hoisted(() => {
 vi.mock("../lib/database", () => databaseMocks)
 vi.mock("../lib/useTypesense", () => typesenseMocks)
 
-const { getAllItems, createItem, updateItem, deleteItem } = databaseMocks
+const { getAllItems, createItem, updateItem, deleteItem, createBookmark } = databaseMocks
 
 const noteFactory = (overrides: Partial<Item> = {}): Item => ({
   id: 1,
@@ -48,6 +48,8 @@ const noteFactory = (overrides: Partial<Item> = {}): Item => ({
   content: "Initial content",
   item_type: "note",
   tags: null,
+  source_type: null,
+  source_url: null,
   created_at: new Date("2024-01-01T00:00:00.000Z").toISOString(),
   updated_at: new Date("2024-01-01T00:00:00.000Z").toISOString(),
   ...overrides,
@@ -83,12 +85,16 @@ describe("NotesWorkspace", () => {
 
     render(<NotesWorkspace />)
 
-    await screen.findByText("Create your first note to get started.")
+    await screen.findByText("Create your first note or bookmark to get started.")
 
     fireEvent.click(screen.getByRole("button", { name: /new note/i }))
 
     await waitFor(() => {
-      expect(createItem).toHaveBeenCalledWith({ title: "Untitled note", content: "", item_type: "note" })
+      expect(createItem).toHaveBeenCalledWith({
+        title: "Untitled note",
+        content: "",
+        item_type: "note",
+      })
     })
 
     expect(await screen.findByDisplayValue("Untitled note")).toBeInTheDocument()
@@ -103,7 +109,7 @@ describe("NotesWorkspace", () => {
         title: title ?? "",
         content: content ?? "",
         updated_at: new Date("2024-01-01T00:05:00.000Z").toISOString(),
-      }),
+      })
     )
 
     render(<NotesWorkspace />)
@@ -118,7 +124,7 @@ describe("NotesWorkspace", () => {
         content: "Updated content",
         item_type: "note",
         tags: null,
-      }),
+      })
     )
 
     await waitFor(() => expect(screen.getByText(/saved/i)).toBeInTheDocument())
@@ -163,6 +169,138 @@ describe("NotesWorkspace", () => {
 
     await waitFor(() => {
       expect(screen.queryByText(/search is temporarily unavailable/i)).not.toBeInTheDocument()
+    })
+  })
+
+  describe("bookmark functionality", () => {
+    it("creates a bookmark when URL is entered and bookmark button is clicked", async () => {
+      const bookmarkItem = noteFactory({
+        id: 2,
+        title: "Example Site",
+        content: "A great example website",
+        item_type: "bookmark",
+        source_type: "bookmark",
+        source_url: "https://example.com",
+      })
+
+      getAllItems.mockResolvedValue([])
+      createBookmark.mockResolvedValue(bookmarkItem)
+
+      render(<NotesWorkspace />)
+
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const urlInput = screen.getByPlaceholderText("Paste URL to bookmark...")
+      const bookmarkButton = screen.getByRole("button", { name: /bookmark/i })
+
+      // Initially bookmark button should be disabled
+      expect(bookmarkButton).toBeDisabled()
+
+      // Enter URL
+      fireEvent.change(urlInput, { target: { value: "https://example.com" } })
+      
+      // Button should now be enabled
+      expect(bookmarkButton).not.toBeDisabled()
+
+      // Click bookmark button
+      fireEvent.click(bookmarkButton)
+
+      await waitFor(() => {
+        expect(createBookmark).toHaveBeenCalledWith("https://example.com")
+      })
+
+      // URL input should be cleared
+      expect(urlInput).toHaveValue("")
+    })
+
+    it("handles bookmark creation with Enter key", async () => {
+      const bookmarkItem = noteFactory({
+        id: 3,
+        title: "Another Site",
+        item_type: "bookmark",
+        source_type: "bookmark", 
+        source_url: "https://another.com",
+      })
+
+      getAllItems.mockResolvedValue([])
+      createBookmark.mockResolvedValue(bookmarkItem)
+
+      render(<NotesWorkspace />)
+
+      await screen.findByText("Create your first note or bookmark to get started.")
+
+      const urlInput = screen.getByPlaceholderText("Paste URL to bookmark...")
+
+      await act(async () => {
+        fireEvent.change(urlInput, { target: { value: "https://another.com" } })
+        fireEvent.keyDown(urlInput, { key: "Enter", code: "Enter" })
+      })
+
+      await waitFor(() => {
+        expect(createBookmark).toHaveBeenCalledWith("https://another.com")
+      })
+    })
+
+    it("displays bookmarks with distinct visual treatment", async () => {
+      const note = noteFactory()
+      const bookmark = noteFactory({
+        id: 2,
+        title: "Example Bookmark",
+        content: "A bookmark description",
+        item_type: "bookmark",
+        source_type: "bookmark",
+        source_url: "https://example.com",
+      })
+
+      getAllItems.mockResolvedValue([note, bookmark])
+
+      render(<NotesWorkspace />)
+
+      await waitFor(() => {
+        expect(screen.getByText("First note")).toBeInTheDocument()
+        expect(screen.getByText("Example Bookmark")).toBeInTheDocument()
+      })
+
+      // Bookmark should have link emoji
+      expect(screen.getByText("🔗")).toBeInTheDocument()
+      
+      // Bookmark should show URL instead of content in list
+      expect(screen.getByText("https://example.com")).toBeInTheDocument()
+    })
+
+    it("displays bookmark details when selected", async () => {
+      const bookmark = noteFactory({
+        id: 1,
+        title: "Example Bookmark",
+        content: "A great example website",
+        item_type: "bookmark",
+        source_type: "bookmark",
+        source_url: "https://example.com",
+      })
+
+      getAllItems.mockResolvedValue([bookmark])
+
+      render(<NotesWorkspace />)
+
+      // Wait for the bookmark to load and be auto-selected (first item)
+      await waitFor(() => {
+        // Should show bookmark title as heading
+        expect(screen.getByRole("heading", { name: "Example Bookmark" })).toBeInTheDocument()
+        
+        // Should show URL section
+        expect(screen.getByText("URL:")).toBeInTheDocument()
+        expect(screen.getByRole("link", { name: "https://example.com" })).toBeInTheDocument()
+        
+        // Should show description section
+        expect(screen.getByText("Description:")).toBeInTheDocument()
+        expect(screen.getByText("A great example website")).toBeInTheDocument()
+      })
+
+      // URL should be clickable and open in new tab
+      const urlLink = screen.getByRole("link", { name: "https://example.com" })
+      expect(urlLink).toHaveAttribute("href", "https://example.com")
+      expect(urlLink).toHaveAttribute("target", "_blank")
+      expect(urlLink).toHaveAttribute("rel", "noopener noreferrer")
     })
   })
 })

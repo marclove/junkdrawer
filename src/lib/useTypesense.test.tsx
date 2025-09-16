@@ -96,15 +96,19 @@ describe("useTypesense", () => {
 
   it("listens for status updates", async () => {
     const callbacks: Array<(status: unknown) => void> = []
-    mocks.onTypesenseStatusUpdate.mockImplementation(async (callback: (status: unknown) => void) => {
-      callbacks.push(callback)
-      return () => {}
-    })
+    mocks.onTypesenseStatusUpdate.mockImplementation(
+      async (callback: (status: unknown) => void) => {
+        callbacks.push(callback)
+        return () => {}
+      }
+    )
 
     const { result } = renderHook(() => useTypesense())
 
     await act(async () => {
-      callbacks.forEach((callback) => callback({ is_healthy: false, message: "down" }))
+      callbacks.forEach((callback) => {
+        callback({ is_healthy: false, message: "down" })
+      })
     })
 
     expect(result.current.isRunning).toBe(false)

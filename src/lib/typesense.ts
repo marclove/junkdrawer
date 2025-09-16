@@ -7,7 +7,10 @@ export interface ServerStatus {
 }
 
 export function isTauriEnvironment(): boolean {
-  return typeof window !== "undefined" && !!(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  return (
+    typeof window !== "undefined" &&
+    !!(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  )
 }
 
 /**
@@ -64,7 +67,7 @@ export async function isTypesenseServerRunning(): Promise<boolean> {
  * @returns Function to unsubscribe from status updates
  */
 export async function onTypesenseStatusUpdate(
-  callback: (status: ServerStatus) => void,
+  callback: (status: ServerStatus) => void
 ): Promise<() => void> {
   if (!isTauriEnvironment()) {
     return Promise.resolve(() => {})

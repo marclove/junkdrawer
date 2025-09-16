@@ -11,6 +11,8 @@ pub struct Model {
     pub content: Option<String>,
     pub item_type: String,
     pub tags: Option<String>,
+    pub source_type: Option<String>,
+    pub source_url: Option<String>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }

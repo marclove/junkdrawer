@@ -2,8 +2,9 @@ import type { Config } from "tailwindcss"
 
 const config: Config = {
   darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}", "./src-tauri/**/*.{rs}"]
-    .filter(Boolean) as string[],
+  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}", "./src-tauri/**/*.{rs}"].filter(
+    Boolean
+  ) as string[],
   theme: {
     container: {
       center: true,
