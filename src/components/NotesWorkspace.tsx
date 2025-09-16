@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createItem, deleteItem, getAllItems, updateItem } from "../lib/database"
 import { useTypesense } from "../lib/useTypesense"
 import type { Item } from "../types/database"
@@ -8,6 +8,7 @@ import { Input } from "./ui/input"
 import { Textarea } from "./ui/textarea"
 
 const AUTOSAVE_DELAY_MS = 500
+const TYPESENSE_WARNING_DELAY_MS = 10_000
 
 interface DraftState {
   id: number
@@ -25,15 +26,21 @@ function toDraft(item: Item): DraftState {
   }
 }
 
-export default function NotesWorkspace() {
+interface NotesWorkspaceProps {
+  typesenseWarningDelayMs?: number
+}
+
+export default function NotesWorkspace({ typesenseWarningDelayMs = TYPESENSE_WARNING_DELAY_MS }: NotesWorkspaceProps = {}) {
   const [notes, setNotes] = useState<Item[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [draft, setDraft] = useState<DraftState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [showTypesenseWarning, setShowTypesenseWarning] = useState(false)
+  const warningTimeoutRef = useRef<number | null>(null)
 
-  const { isRunning: isTypesenseRunning, serverStatus } = useTypesense()
+  const { serverStatus } = useTypesense()
 
   useEffect(() => {
     let cancelled = false
@@ -156,6 +163,37 @@ export default function NotesWorkspace() {
     }
   }, [draft, selectedNote])
 
+  useEffect(() => {
+    if (serverStatus?.is_healthy !== false) {
+      if (warningTimeoutRef.current !== null) {
+        window.clearTimeout(warningTimeoutRef.current)
+        warningTimeoutRef.current = null
+      }
+      setShowTypesenseWarning(false)
+      return
+    }
+
+    if (showTypesenseWarning) {
+      return
+    }
+
+    if (warningTimeoutRef.current !== null) {
+      return
+    }
+
+    warningTimeoutRef.current = window.setTimeout(() => {
+      setShowTypesenseWarning(true)
+      warningTimeoutRef.current = null
+    }, typesenseWarningDelayMs)
+
+    return () => {
+      if (warningTimeoutRef.current !== null) {
+        window.clearTimeout(warningTimeoutRef.current)
+        warningTimeoutRef.current = null
+      }
+    }
+  }, [serverStatus?.is_healthy, showTypesenseWarning, typesenseWarningDelayMs])
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
@@ -166,6 +204,16 @@ export default function NotesWorkspace() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      {showTypesenseWarning && (
+        <div className="border-b border-destructive/40 bg-destructive/10 text-destructive">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-2 text-sm">
+            <span className="font-medium">Search is temporarily unavailable.</span>
+            <span className="text-xs text-destructive/90 sm:text-sm">
+              {serverStatus?.message ?? "Typesense is unreachable. We'll resume syncing when it's back."}
+            </span>
+          </div>
+        </div>
+      )}
       <header className="border-b border-border bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/40">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
           <div>
@@ -173,14 +221,6 @@ export default function NotesWorkspace() {
             <p className="text-sm text-muted-foreground">Plain text notes, synced to search.</p>
           </div>
           <div className="flex items-center gap-3">
-            <div
-              className="flex items-center gap-2 rounded-full border border-border/80 bg-muted px-3 py-1 text-xs text-muted-foreground"
-              role="status"
-              aria-live="polite"
-            >
-              <span className={isTypesenseRunning ? "h-2 w-2 rounded-full bg-emerald-500" : "h-2 w-2 rounded-full bg-amber-500"} />
-              <span>{isTypesenseRunning ? "Search online" : "Search offline"}</span>
-            </div>
             <Button onClick={handleCreateNote} size="sm">
               New note
             </Button>
@@ -275,10 +315,6 @@ export default function NotesWorkspace() {
           )}
         </section>
       </div>
-
-      <footer className="border-t border-border bg-card/50 py-3 text-center text-xs text-muted-foreground">
-        {serverStatus?.message ?? "Typesense status unknown"}
-      </footer>
 
       {error && (
         <div className="fixed bottom-6 right-6 max-w-sm rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">

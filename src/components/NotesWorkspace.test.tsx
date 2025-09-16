@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import NotesWorkspace from "./NotesWorkspace"
@@ -11,17 +11,31 @@ const databaseMocks = vi.hoisted(() => ({
   deleteItem: vi.fn(),
 }))
 
-const typesenseMocks = vi.hoisted(() => ({
-  useTypesense: () => ({
+const typesenseMocks = vi.hoisted(() => {
+  const state = {
     isRunning: true,
     isLoading: false,
-    error: null,
+    error: null as string | null,
     serverStatus: { is_healthy: true, message: "Typesense server is healthy" },
     startServer: vi.fn(),
     stopServer: vi.fn(),
     refreshStatus: vi.fn(),
-  }),
-}))
+  }
+
+  return {
+    state,
+    reset() {
+      state.isRunning = true
+      state.isLoading = false
+      state.error = null
+      state.serverStatus = { is_healthy: true, message: "Typesense server is healthy" }
+      state.startServer.mockReset()
+      state.stopServer.mockReset()
+      state.refreshStatus.mockReset()
+    },
+    useTypesense: vi.fn(() => state),
+  }
+})
 
 vi.mock("../lib/database", () => databaseMocks)
 vi.mock("../lib/useTypesense", () => typesenseMocks)
@@ -40,11 +54,15 @@ const noteFactory = (overrides: Partial<Item> = {}): Item => ({
 })
 
 describe("NotesWorkspace", () => {
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
   beforeEach(() => {
     getAllItems.mockReset()
     createItem.mockReset()
     updateItem.mockReset()
     deleteItem.mockReset()
+    typesenseMocks.reset()
+    typesenseMocks.useTypesense.mockClear()
   })
 
   it("renders notes returned from the database and selects the first", async () => {
@@ -104,5 +122,47 @@ describe("NotesWorkspace", () => {
     )
 
     await waitFor(() => expect(screen.getByText(/saved/i)).toBeInTheDocument())
+  })
+
+  it("only shows the search warning after 10 seconds of downtime", async () => {
+    getAllItems.mockResolvedValue([noteFactory()])
+    typesenseMocks.state.serverStatus = { is_healthy: false, message: "Typesense offline" }
+
+    render(<NotesWorkspace typesenseWarningDelayMs={60} />)
+
+    await screen.findByDisplayValue("First note")
+
+    expect(screen.queryByText(/search is temporarily unavailable/i)).not.toBeInTheDocument()
+
+    await act(async () => {
+      await wait(40)
+    })
+    expect(screen.queryByText(/search is temporarily unavailable/i)).not.toBeInTheDocument()
+
+    await act(async () => {
+      await wait(30)
+    })
+    expect(screen.getByText(/search is temporarily unavailable/i)).toBeInTheDocument()
+  })
+
+  it("hides the search warning when the server recovers", async () => {
+    getAllItems.mockResolvedValue([noteFactory()])
+    typesenseMocks.state.serverStatus = { is_healthy: false, message: "Typesense offline" }
+
+    const { rerender } = render(<NotesWorkspace typesenseWarningDelayMs={60} />)
+
+    await screen.findByDisplayValue("First note")
+
+    await act(async () => {
+      await wait(80)
+    })
+    expect(screen.getByText(/search is temporarily unavailable/i)).toBeInTheDocument()
+
+    typesenseMocks.state.serverStatus = { is_healthy: true, message: "Healthy" }
+    rerender(<NotesWorkspace typesenseWarningDelayMs={60} />)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/search is temporarily unavailable/i)).not.toBeInTheDocument()
+    })
   })
 })
